@@ -28,5 +28,6 @@ typedef struct {
 } Data_descriptor;
 
 void addZip(FILE *output, char *file_name);
+void make_crc_table(void);
 
 #endif /* __ZIP_H__ */

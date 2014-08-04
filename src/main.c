@@ -10,6 +10,8 @@ int main(int argc, char *argv[])
     char *file_name = "out.zip";
     FILE *output;
 
+    make_crc_table();
+
     output = fopen(file_name, "wb");
 
     for (i = 1; i < argc; i++) {
