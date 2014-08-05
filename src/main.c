@@ -18,6 +18,9 @@ int main(int argc, char *argv[])
         printf("[%d] %s\n", i, argv[i]);
         addZip(output, argv[i]);
     }
+    for (i = 1; i < argc; i++) {
+        addCentralDirectoryHeader(output, argv[i]);
+    }
 
     if(fclose(output) == -1) {
         fprintf(stderr, "Error\n");

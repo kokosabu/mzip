@@ -35,6 +35,38 @@ void addZip(FILE *output, char *file_name)
     initZipHeader(output, file_name);
 }
 
+void addCentralDirectoryHeader(FILE *output, char *file_name)
+{
+    central_directory_file_header *header;
+
+    header = (central_directory_file_header *)malloc(sizeof(central_directory_file_header) + strlen(file_name) - 1);
+
+    header->signature                = 0x02014B50;
+    header->version                  = 0x1003;
+    header->version_e                = 0x1003;
+    header->bit_flag                 = 0x0000;
+    header->compression_method       = 0x0000;
+    header->file_time                = 0x0000;
+    header->file_date                = 0x0000;
+    header->crc_32                   = crc32(NULL, 0);
+    header->compressed_size          = 0;
+    header->uncompressed_size        = 0;
+    header->file_name_length         = strlen(file_name);
+    header->extra_field_length       = 0;
+    header->file_comment_length      = 0;
+    header->disk_number_start        = 0;
+    header->internal_file_attributes = 0;
+    header->external_file_attributes = 0;
+    header->relative_offset          = 0;
+    for (int i = 0; i < strlen(file_name); i++) {
+        header->file_name[i] = file_name[i];
+    }
+
+    fwrite(header, sizeof(central_directory_file_header) + strlen(file_name), 1, output);
+
+    free(header);
+}
+
 static void initZipHeader(FILE *output, char *file_name)
 {
     local_file_header *header;
