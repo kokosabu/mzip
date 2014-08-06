@@ -22,6 +22,8 @@ int main(int argc, char *argv[])
         addCentralDirectoryHeader(output, argv[i]);
     }
 
+    addEndOfCentralDirectoryRecord(output);
+
     if(fclose(output) == -1) {
         fprintf(stderr, "Error\n");
         return -1;

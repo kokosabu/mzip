@@ -2,9 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "zip.h"
 
 static uint32_t crc_table[256];
+static uint16_t total = 0;
+static uint32_t size = 0;
+static fpos_t fpos = 0;
+static bool fpos_b = false;
 
 static void initZipHeader(FILE *output, char *file_name);
 static uint32_t crc32(uint8_t *buf, size_t len);
@@ -62,9 +67,37 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
         header->file_name[i] = file_name[i];
     }
 
+    if (fpos_b == false) {
+        fpos_b = true;
+        fgetpos(output, &fpos);
+    }
+
     fwrite(header, sizeof(central_directory_file_header) + strlen(file_name), 1, output);
 
     free(header);
+
+    total++;
+    size += sizeof(central_directory_file_header) + strlen(file_name);
+}
+
+void addEndOfCentralDirectoryRecord(FILE *output)
+{
+    end_of_central_directory_record *record;
+
+    record = (end_of_central_directory_record *)malloc(sizeof(end_of_central_directory_record));
+
+    record->signature                 = 0x06054B50;
+    record->disk                      = 0;
+    record->directory                 = 0;
+    record->total_number_of_disk      = total;
+    record->total_number_of_directory = total;
+    record->size                      = size;
+    record->offset                    = fpos;
+    record->comment_length            = 0;
+
+    fwrite(record, sizeof(central_directory_file_header), 1, output);
+
+    free(record);
 }
 
 static void initZipHeader(FILE *output, char *file_name)
@@ -73,7 +106,7 @@ static void initZipHeader(FILE *output, char *file_name)
 
     header = (local_file_header *)malloc(sizeof(local_file_header) + strlen(file_name) - 1);
 
-    header->signature          = 0x04034B50; //0x504B0304;
+    header->signature          = 0x04034B50;
     header->version            = 0x1003;
     header->bit_flag           = 0x0000;
     header->compression_method = 0x0000;
