@@ -11,8 +11,10 @@ static uint32_t size = 0;
 static fpos_t fpos = 0;
 static bool fpos_b = false;
 
-static void initZipHeader(FILE *output, char *file_name);
-static uint32_t crc32(uint8_t *buf, size_t len);
+static void initZipHeader(FILE *output, char *file_name, FILE *input);
+static void fileCopy(FILE *output, FILE *input);
+static uint32_t crc32(FILE *input);
+static long getFileSize(FILE *file);
 
 /* 事前にこの関数を実行しておくこと */
 void make_crc_table(void)
@@ -26,24 +28,43 @@ void make_crc_table(void)
     }
 }
 
-static uint32_t crc32(uint8_t *buf, size_t len)
+static uint32_t crc32(FILE *input)
 {
-    uint32_t c = 0xFFFFFFFF;
-    for (size_t i = 0; i < len; i++) {
-        c = crc_table[(c ^ buf[i]) & 0xFF] ^ (c >> 8);
+    uint8_t buf[1024];
+    size_t size;
+    uint32_t c;
+
+    fseek(input, 0, SEEK_SET);
+
+    c = 0xFFFFFFFF;
+    size = fread(buf, 1, 1024, input);
+    while(size != 0) {
+        for (size_t i = 0; i < size; i++) {
+            c = crc_table[(c ^ buf[i]) & 0xFF] ^ (c >> 8);
+        }
+        size = fread(buf, 1, 1024, input);
     }
+
+    fseek(input, 0, SEEK_SET);
     return c ^ 0xFFFFFFFF;
 }
 
 void addZip(FILE *output, char *file_name)
 {
-    initZipHeader(output, file_name);
+    FILE *input;
+    
+    input = fopen(file_name, "rb");
+    initZipHeader(output, file_name, input);
+    fileCopy(output, input);
+    fclose(input);
 }
 
 void addCentralDirectoryHeader(FILE *output, char *file_name)
 {
+    FILE *input;
     central_directory_file_header *header;
 
+    input = fopen(file_name, "rb");
     header = (central_directory_file_header *)malloc(sizeof(central_directory_file_header) + strlen(file_name) - 1);
 
     header->signature                = 0x02014B50;
@@ -53,9 +74,9 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
     header->compression_method       = 0x0000;
     header->file_time                = 0x0000;
     header->file_date                = 0x0000;
-    header->crc_32                   = crc32(NULL, 0);
-    header->compressed_size          = 0;
-    header->uncompressed_size        = 0;
+    header->crc_32                   = crc32(input);
+    header->compressed_size          = getFileSize(input);
+    header->uncompressed_size        = getFileSize(input);
     header->file_name_length         = strlen(file_name);
     header->extra_field_length       = 0;
     header->file_comment_length      = 0;
@@ -74,6 +95,7 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
 
     fwrite(header, sizeof(central_directory_file_header) + strlen(file_name), 1, output);
 
+    fclose(input);
     free(header);
 
     total++;
@@ -100,7 +122,7 @@ void addEndOfCentralDirectoryRecord(FILE *output)
     free(record);
 }
 
-static void initZipHeader(FILE *output, char *file_name)
+static void initZipHeader(FILE *output, char *file_name, FILE *input)
 {
     local_file_header *header;
 
@@ -112,16 +134,44 @@ static void initZipHeader(FILE *output, char *file_name)
     header->compression_method = 0x0000;
     header->file_time          = 0x0000;
     header->file_date          = 0x0000;
-    header->crc_32             = crc32(NULL, 0);
-    header->compressed_size    = 0;
-    header->uncompressed_size  = 0;
+    header->crc_32             = crc32(input);
+    header->compressed_size    = getFileSize(input);
+    header->uncompressed_size  = getFileSize(input);
     header->file_name_length   = strlen(file_name);
     header->extra_field_length = 0;
     for (int i = 0; i < strlen(file_name); i++) {
         header->file_name[i] = file_name[i];
     }
 
-    fwrite(header, sizeof(local_file_header) + strlen(file_name), 1, output);
+    fwrite(header, 1, sizeof(local_file_header) + strlen(file_name), output);
 
     free(header);
+}
+
+static long getFileSize(FILE *file)
+{
+    long ans;
+
+    fseek(file, 0, SEEK_END);
+    //fgetpos(file, &ans);
+    ans = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    return ans;
+}
+
+static void fileCopy(FILE *output, FILE *input)
+{
+    size_t size;
+    uint8_t data[1024];
+
+    fseek(input, 0, SEEK_SET);
+
+    size = fread(data, 1, 1024, input);
+    while( size != 0 ) {
+        fwrite(data, 1, size, output);
+        size = fread(data, 1, 1024, input);
+    }
+
+    fseek(input, 0, SEEK_SET);
 }
