@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 #include <sys/stat.h>
 #include "zip.h"
 
@@ -16,21 +17,8 @@ static void initZipHeader(FILE *output, char *file_name, FILE *input);
 static void fileCopy(FILE *output, FILE *input);
 static uint32_t crc32(FILE *input);
 static long getFileSize(FILE *file);
-static uint16_t get_FileTime(char *file_name);
-static uint16_t get_FileDate(char *file_name);
-
-const unsigned long dayofm[ ] = {    /* 閏年でない年の各月の日数 */
-    31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
-};
-
-const unsigned long dayoflm[ ] = {    /* 閏年の各月の日数 */
-    31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
-};
-
-const char *monthstr[ ] = {    /* 各月の名前 */
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Des"
-};
+static uint16_t getFileTime(char *file_name);
+static uint16_t getFileDate(char *file_name);
 
 /* 事前にこの関数を実行しておくこと */
 void make_crc_table(void)
@@ -88,8 +76,8 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
     header->version_e                = 0x1003;
     header->bit_flag                 = 0x0000;
     header->compression_method       = 0x0000;
-    header->file_time                = get_FileTime(file_name);
-    header->file_date                = get_FileDate(file_name);
+    header->file_time                = getFileTime(file_name);
+    header->file_date                = getFileDate(file_name);
     header->crc_32                   = crc32(input);
     header->compressed_size          = getFileSize(input);
     header->uncompressed_size        = getFileSize(input);
@@ -148,8 +136,8 @@ static void initZipHeader(FILE *output, char *file_name, FILE *input)
     header->version            = 0x1003;
     header->bit_flag           = 0x0000;
     header->compression_method = 0x0000;
-    header->file_time          = get_FileTime(file_name);
-    header->file_date          = get_FileDate(file_name);
+    header->file_time          = getFileTime(file_name);
+    header->file_date          = getFileDate(file_name);
     header->crc_32             = crc32(input);
     header->compressed_size    = getFileSize(input);
     header->uncompressed_size  = getFileSize(input);
@@ -192,155 +180,37 @@ static void fileCopy(FILE *output, FILE *input)
     fseek(input, 0, SEEK_SET);
 }
 
-static uint16_t get_FileTime(char *file_name)
+static uint16_t getFileTime(char *file_name)
 {
     struct stat st_file;
-    time_t  timer, work, sec, min, hour, day;
-    int year = 1970;
-    int month = 1;
     uint16_t ans;
+    struct tm *local;
 
     stat(file_name, &st_file);
-
-    work = st_file.st_mtimespec.tv_sec; 
-
-    sec = work % 60;        /* 秒を割り出す */
-    work -= sec;            /* 秒を引く */
-    work = work / 60;       /* 分の単位に変換 */
-
-    min = work % 60;        /* 分を割り出す */
-    work -= min;            /* 分を引く */
-    work = work / 60;       /* 時の単位に変換 */
-
-    hour = work % 24;       /* 時を割り出す */
-    work -= hour;           /* 時を引く */
-
-    day = work / 24;        /* 1970 年からの経過日数を割り出す */
-
-    /* このループを抜けると day には今年の経過日数が残る */
-    while (day > 366) {            /* 1970 年から何年経過したか調べる */
-        if (!(year % 4) && ((year % 100) || !(year % 400))) {
-            day -= 366;            /* 366 を引き */
-        } else {                      /* 閏年でなければ */
-            day -= 365;            /* 365 を引き */
-        }
-        year++;                    /* 西暦を 1 増やす */
-    }
-
-    day++;                         /* 1 月 1 日は 0 だから */
-    /* day
-     * には最初は今年の経過日数が入っている。各月の日数を順次引くことにより
-     * */
-    /* このループを抜けると day にはその月の経過日数 ( 日付 ) が残る */
-    while (1) {                 
-        if (!(year % 4) && ((year % 100) || !(year % 400))) {
-            if (day <= dayoflm[month -1])       /* 月の日数より day が少なければ（等号が抜けていました。（ＨＮ）James Bond さんご指摘ありがとうございました。） */
-                break;
-            else {                             /* 月の日数より day が多ければ */
-                day -= dayoflm[month -1];      /* 月の日数を引き */
-                month++;                       /* 月を 1 増やす */
-            }
-        }
-        if (!(!(year % 4) && ((year % 100) || !(year % 400)))) {               /* もし閏年でなければ */
-            if (day <= dayofm[month -1])        /* 以下同上 */
-                break;
-            else {
-                day -= dayofm[month -1];
-                month++;
-            }
-        }
-    }
+    local = localtime(&(st_file.st_mtimespec.tv_sec));
 
     ans = 0;
-    ans |= (hour & 0x1F) << 11;
-    ans |= (min & 0x3F)   << 5;
-    ans |= (sec / 2) & 0x1F;
-
-    printf("%x\n", ans);
-    //ビット割り当て
-    // 12:01100 21:10101
-    //%1111100000000000 = 0～23 [時]
-    //%0000011111100000 = 0～59 [分]
-    //%0000000000011111 = 0～29 [×2秒] ⇒1で2秒分を表す
-    // 654e : 0110 0101 0100 1110 - Time
-    //        01100 101010 01110
-    //        12    42     14->28
-    // a90a : 1010 1001 0000 1010 - Date
-    // a90a : 1010100 1000 01010
-    //        1 2 4 8 16 32 64
-    // miura-no-MacBook-Pro:src miura$ ls -l hoge.txt
-    // -rw-r--r--  1 miura  staff  8  8 10 21:42 hoge.txt
+    ans |= (local->tm_hour & 0x1F) << 11;
+    ans |= (local->tm_min & 0x3F)   << 5;
+    ans |= (local->tm_sec / 2) & 0x1F;
 
     return ans;
 }
 
-static uint16_t get_FileDate(char *file_name)
+static uint16_t getFileDate(char *file_name)
 {
     struct stat st_file;
-    time_t  timer, work, sec, min, hour, day;
-    int year = 1970;
-    int month = 1;
     uint16_t ans;
+    struct tm *local;
 
     stat(file_name, &st_file);
-
-    work = st_file.st_mtimespec.tv_sec; 
-
-    sec = work % 60;        /* 秒を割り出す */
-    work -= sec;            /* 秒を引く */
-    work = work / 60;       /* 分の単位に変換 */
-
-    min = work % 60;        /* 分を割り出す */
-    work -= min;            /* 分を引く */
-    work = work / 60;       /* 時の単位に変換 */
-
-    hour = work % 24;       /* 時を割り出す */
-    work -= hour;           /* 時を引く */
-
-    day = work / 24;        /* 1970 年からの経過日数を割り出す */
-
-    /* このループを抜けると day には今年の経過日数が残る */
-    while (day > 366) {            /* 1970 年から何年経過したか調べる */
-        if (!(year % 4) && ((year % 100) || !(year % 400))) {
-            day -= 366;            /* 366 を引き */
-        } else {                      /* 閏年でなければ */
-            day -= 365;            /* 365 を引き */
-        }
-        year++;                    /* 西暦を 1 増やす */
-    }
-
-    day++;                         /* 1 月 1 日は 0 だから */
-    /* day
-     * には最初は今年の経過日数が入っている。各月の日数を順次引くことにより
-     * */
-    /* このループを抜けると day にはその月の経過日数 ( 日付 ) が残る */
-    while (1) {                 
-        if (!(year % 4) && ((year % 100) || !(year % 400))) {
-            if (day <= dayoflm[month -1])       /* 月の日数より day が少なければ（等号が抜けていました。（ＨＮ）James Bond さんご指摘ありがとうございました。） */
-                break;
-            else {                             /* 月の日数より day が多ければ */
-                day -= dayoflm[month -1];      /* 月の日数を引き */
-                month++;                       /* 月を 1 増やす */
-            }
-        }
-        if (!(!(year % 4) && ((year % 100) || !(year % 400)))) {               /* もし閏年でなければ */
-            if (day <= dayofm[month -1])        /* 以下同上 */
-                break;
-            else {
-                day -= dayofm[month -1];
-                month++;
-            }
-        }
-    }
+    local = localtime(&(st_file.st_mtimespec.tv_sec));
 
     ans = 0;
-    ans |= ((year-1980) & 0x7F) << 9;
-    ans |= (month & 0xF)   << 5;
-    ans |= day & 0x1F;
+    ans |= ((local->tm_year-80) & 0x7F) << 9;
+    ans |= ((local->tm_mon+1) & 0xF)   << 5;
+    ans |= local->tm_mday & 0x1F;
     printf("%x\n", ans);
-    // %11111110 00000000 = 0～   [＋1980年] ⇒西暦1980年からの経過年
-    // %00000001 11100000 = 1～12 [月]
-    // %00000000 00011111 = 1～31 [日]
 
     return ans;
 }
