@@ -72,8 +72,8 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
     header = (central_directory_file_header *)malloc(sizeof(central_directory_file_header) + strlen(file_name) - 1);
 
     header->signature                = 0x02014B50;
-    header->version                  = 0x1003;
-    header->version_e                = 0x1003;
+    header->version                  = 0x000a;
+    header->version_e                = 0x000a;
     header->bit_flag                 = 0x0000;
     header->compression_method       = 0x0000;
     header->file_time                = getFileTime(file_name);
@@ -133,7 +133,7 @@ static void initZipHeader(FILE *output, char *file_name, FILE *input)
     header = (local_file_header *)malloc(sizeof(local_file_header) + strlen(file_name) - 1);
 
     header->signature          = 0x04034B50;
-    header->version            = 0x1003;
+    header->version            = 0x000a;
     header->bit_flag           = 0x0000;
     header->compression_method = 0x0000;
     header->file_time          = getFileTime(file_name);
@@ -157,7 +157,6 @@ static long getFileSize(FILE *file)
     long ans;
 
     fseek(file, 0, SEEK_END);
-    //fgetpos(file, &ans);
     ans = ftell(file);
     fseek(file, 0, SEEK_SET);
 
@@ -210,7 +209,6 @@ static uint16_t getFileDate(char *file_name)
     ans |= ((local->tm_year-80) & 0x7F) << 9;
     ans |= ((local->tm_mon+1) & 0xF)   << 5;
     ans |= local->tm_mday & 0x1F;
-    printf("%x\n", ans);
 
     return ans;
 }
