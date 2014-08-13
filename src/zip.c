@@ -69,7 +69,10 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
     central_directory_file_header *header;
 
     input = fopen(file_name, "rb");
-    header = (central_directory_file_header *)malloc(sizeof(central_directory_file_header) + strlen(file_name) - 1);
+    header = (central_directory_file_header *)malloc(sizeof(central_directory_file_header));
+    header->file_name    = (char *)malloc(strlen(file_name));
+    header->extra_field  = NULL;
+    header->file_comment = NULL;
 
     header->signature                = 0x02014B50;
     header->version                  = 0x000a;
@@ -88,18 +91,18 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
     header->internal_file_attributes = 0;
     header->external_file_attributes = 0;
     header->relative_offset          = 0;
-    for (int i = 0; i < strlen(file_name); i++) {
-        header->file_name[i] = file_name[i];
-    }
+    strncpy(header->file_name, file_name, strlen(file_name));
 
     if (fpos_b == false) {
         fpos_b = true;
         fgetpos(output, &fpos);
     }
 
-    fwrite(header, sizeof(central_directory_file_header) + strlen(file_name), 1, output);
+    fwrite(header, sizeof(central_directory_file_header) - sizeof(header->file_name) - sizeof(header->extra_field) -sizeof(header->file_comment), 1, output);
+    fwrite(header->file_name, strlen(file_name), 1, output);
 
     fclose(input);
+    free(header->file_name);
     free(header);
 
     total++;
