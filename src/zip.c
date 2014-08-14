@@ -106,7 +106,7 @@ void addCentralDirectoryHeader(FILE *output, char *file_name)
     free(header);
 
     total++;
-    size += sizeof(central_directory_file_header) + strlen(file_name);
+    size += sizeof(central_directory_file_header) - sizeof(header->file_name) - sizeof(header->extra_field) - sizeof(header->file_comment) + strlen(file_name);
 }
 
 void addEndOfCentralDirectoryRecord(FILE *output)
@@ -114,6 +114,7 @@ void addEndOfCentralDirectoryRecord(FILE *output)
     end_of_central_directory_record *record;
 
     record = (end_of_central_directory_record *)malloc(sizeof(end_of_central_directory_record));
+    record->file_comment = NULL;
 
     record->signature                 = 0x06054B50;
     record->disk                      = 0;
@@ -124,7 +125,7 @@ void addEndOfCentralDirectoryRecord(FILE *output)
     record->offset                    = fpos;
     record->comment_length            = 0;
 
-    fwrite(record, sizeof(central_directory_file_header), 1, output);
+    fwrite(record, sizeof(end_of_central_directory_record) - sizeof(record->file_comment), 1, output);
 
     free(record);
 }
@@ -133,7 +134,9 @@ static void initZipHeader(FILE *output, char *file_name, FILE *input)
 {
     local_file_header *header;
 
-    header = (local_file_header *)malloc(sizeof(local_file_header) + strlen(file_name) - 1);
+    header = (local_file_header *)malloc(sizeof(local_file_header));
+    header->file_name   = (char *)malloc(strlen(file_name));
+    header->extra_field = NULL;
 
     header->signature          = 0x04034B50;
     header->version            = 0x000a;
@@ -146,12 +149,12 @@ static void initZipHeader(FILE *output, char *file_name, FILE *input)
     header->uncompressed_size  = getFileSize(input);
     header->file_name_length   = strlen(file_name);
     header->extra_field_length = 0;
-    for (int i = 0; i < strlen(file_name); i++) {
-        header->file_name[i] = file_name[i];
-    }
+    strncpy(header->file_name, file_name, strlen(file_name));
 
-    fwrite(header, 1, sizeof(local_file_header) + strlen(file_name), output);
+    fwrite(header, 1, sizeof(local_file_header) - sizeof(header->file_name) - sizeof(header->extra_field), output);
+    fwrite(header->file_name, 1, strlen(file_name), output);
 
+    free(header->file_name);
     free(header);
 }
 
