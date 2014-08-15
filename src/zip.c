@@ -8,10 +8,10 @@
 #include "zip.h"
 
 static uint32_t crc_table[256];
-static uint16_t total = 0;
-static uint32_t size = 0;
-static fpos_t fpos = 0;
-static bool fpos_b = false;
+static uint16_t total  = 0;
+static uint32_t size   = 0;
+static fpos_t   fpos   = 0;
+static bool     fpos_b = false;
 
 static void initZipHeader(FILE *output, char *file_name, FILE *input);
 static void fileCopy(FILE *output, FILE *input);
@@ -195,8 +195,8 @@ static uint16_t getFileTime(char *file_name)
     local = localtime(&(st_file.st_mtimespec.tv_sec));
 
     ans = 0;
-    ans |= (local->tm_hour & 0x1F) << 11;
-    ans |= (local->tm_min & 0x3F)   << 5;
+    ans |= (local->tm_hour     & 0x1F) << 11;
+    ans |= (local->tm_min      & 0x3F) <<  5;
     ans |= (local->tm_sec / 2) & 0x1F;
 
     return ans;
@@ -212,9 +212,9 @@ static uint16_t getFileDate(char *file_name)
     local = localtime(&(st_file.st_mtimespec.tv_sec));
 
     ans = 0;
-    ans |= ((local->tm_year-80) & 0x7F) << 9;
-    ans |= ((local->tm_mon+1) & 0xF)   << 5;
-    ans |= local->tm_mday & 0x1F;
+    ans |= ((local->tm_year - 80) & 0x7F) << 9;
+    ans |= ((local->tm_mon  +  1) & 0xF)  << 5;
+    ans |=   local->tm_mday       & 0x1F;
 
     return ans;
 }

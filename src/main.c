@@ -15,13 +15,11 @@ int main(int argc, char *argv[])
     output = fopen(file_name, "wb");
 
     for (i = 1; i < argc; i++) {
-        printf("[%d] %s\n", i, argv[i]);
         addZip(output, argv[i]);
     }
     for (i = 1; i < argc; i++) {
         addCentralDirectoryHeader(output, argv[i]);
     }
-
     addEndOfCentralDirectoryRecord(output);
 
     if(fclose(output) == -1) {
