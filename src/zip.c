@@ -6,8 +6,8 @@
 #include <time.h>
 #include <sys/stat.h>
 #include "zip.h"
+#include "crc32.h"
 
-static uint32_t crc_table[256];
 static uint16_t total  = 0;
 static uint32_t size   = 0;
 static fpos_t   fpos   = 0;
@@ -15,43 +15,9 @@ static bool     fpos_b = false;
 
 static void initZipHeader(FILE *output, char *file_name, FILE *input);
 static void fileCopy(FILE *output, FILE *input);
-static uint32_t crc32(FILE *input);
 static long getFileSize(FILE *file);
 static uint16_t getFileTime(char *file_name);
 static uint16_t getFileDate(char *file_name);
-
-/* 事前にこの関数を実行しておくこと */
-void make_crc_table(void)
-{
-    for (uint32_t i = 0; i < 256; i++) {
-        uint32_t c = i;
-        for (int j = 0; j < 8; j++) {
-            c = (c & 1) ? (0xEDB88320 ^ (c >> 1)) : (c >> 1);
-        }
-        crc_table[i] = c;
-    }
-}
-
-static uint32_t crc32(FILE *input)
-{
-    uint8_t buf[1024];
-    size_t size;
-    uint32_t c;
-
-    fseek(input, 0, SEEK_SET);
-
-    c = 0xFFFFFFFF;
-    size = fread(buf, 1, 1024, input);
-    while(size != 0) {
-        for (size_t i = 0; i < size; i++) {
-            c = crc_table[(c ^ buf[i]) & 0xFF] ^ (c >> 8);
-        }
-        size = fread(buf, 1, 1024, input);
-    }
-
-    fseek(input, 0, SEEK_SET);
-    return c ^ 0xFFFFFFFF;
-}
 
 void addZip(FILE *output, char *file_name)
 {
